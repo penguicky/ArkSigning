@@ -16,7 +16,7 @@ g++ *.cpp common/*.cpp -lcrypto -I/usr/local/Cellar/openssl@1.1/1.1.1k/include -
 
 ```bash
 sudo apt-get install git
-git clone https://github.com/arinawzad/super-arksigning.git; cd arksigning && chmod +x INSTALL.sh &&
+git clone https://github.com/nabzclan-reborn/ArkSigning.git; cd arksigning && chmod +x INSTALL.sh &&
 ./INSTALL.sh
 ```
 
@@ -25,7 +25,7 @@ git clone https://github.com/arinawzad/super-arksigning.git; cd arksigning && ch
 
 ```bash
 yum install git 
-git clone https://github.com/arinawzad/super-arksigning.git; cd arksigning && chmod +x INSTALL.sh &&
+git clone https://github.com/nabzclan-reborn/ArkSigning.git; cd arksigning && chmod +x INSTALL.sh &&
 ./INSTALL.sh
 ```
 
@@ -130,7 +130,7 @@ binary: `outputdir/bin/arksigning`
 
 1. Build:
 ```
-docker build -t arksigning https://github.com/zhlynn/arksigning.git
+docker build -t arksigning https://github.com/nabzclan-reborn/ArkSigning.git
 ```
 
 2. Run:
@@ -171,7 +171,7 @@ options:
 -p, --password          Password for private key or p12 file.
 -b, --bundle_id         New bundle id to change.
 -n, --bundle_name       New bundle name to change.
---info , --info              Output app information in JSON format.
+--info, --info          Output app information in JSON format.
 -r, --bundle_version    New bundle version to change.
 -e, --entitlements      New entitlements to change.
 -z, --zip_level         Compressed level when output the ipa file. (0-9)
@@ -244,22 +244,4 @@ When you re-sign the folder with other assets next time, arksigning will use the
 ## Credits
 
 > arinawzad: [Github](https://github.com/arinawzad) - Added support for removing embedded.mobileprovision
-
-
-
-
-## License
-
-arksigning is licensed under the terms of  BSD-3-Clause license. See the [LICENSE](LICENSE) file.
-
-> THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
