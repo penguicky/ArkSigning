@@ -15,6 +15,86 @@ ZAppBundle::ZAppBundle()
 
 
 
+bool ZAppBundle::GetAppIcon(const string& appFolder, string& iconBase64) {
+    string strInfoPlistPath = appFolder + "/Info.plist";
+    string strInfoPlistData;
+    ReadFile(strInfoPlistPath.c_str(), strInfoPlistData);
+    
+    JValue jvInfo;
+    jvInfo.readPList(strInfoPlistData);
+    
+    vector<string> possibleIconPaths;
+    
+    if (jvInfo.has("CFBundleIcons")) {
+        JValue iconDict = jvInfo["CFBundleIcons"];
+        if (iconDict.has("CFBundlePrimaryIcon") && iconDict["CFBundlePrimaryIcon"].has("CFBundleIconFiles")) {
+            JValue iconFiles = iconDict["CFBundlePrimaryIcon"]["CFBundleIconFiles"];
+            for (int i = 0; i < iconFiles.size(); i++) {
+                string iconName = iconFiles[i].asString();
+                possibleIconPaths.push_back(appFolder + "/" + iconName + ".png");
+                possibleIconPaths.push_back(appFolder + "/" + iconName + "@2x.png");
+                possibleIconPaths.push_back(appFolder + "/" + iconName + "@3x.png");
+            }
+        }
+    }
+    
+    if (jvInfo.has("CFBundleIconFiles")) {
+        JValue iconFiles = jvInfo["CFBundleIconFiles"];
+        for (int i = 0; i < iconFiles.size(); i++) {
+            string iconName = iconFiles[i].asString();
+            possibleIconPaths.push_back(appFolder + "/" + iconName);
+            possibleIconPaths.push_back(appFolder + "/" + iconName + ".png");
+        }
+    }
+    
+    if (jvInfo.has("CFBundleIconFile")) {
+        string iconName = jvInfo["CFBundleIconFile"].asString();
+        possibleIconPaths.push_back(appFolder + "/" + iconName);
+        possibleIconPaths.push_back(appFolder + "/" + iconName + ".png");
+    }
+    
+    possibleIconPaths.push_back(appFolder + "/AppIcon.png");
+    possibleIconPaths.push_back(appFolder + "/Icon.png");
+    possibleIconPaths.push_back(appFolder + "/Icon@2x.png");
+    
+    DIR* dir = opendir((appFolder + "/Assets.xcassets").c_str());
+    if (dir != NULL) {
+        dirent* entry;
+        while ((entry = readdir(dir)) != NULL) {
+            string name = entry->d_name;
+            if (name.find("AppIcon") != string::npos && entry->d_type == DT_DIR) {
+                string iconsetPath = appFolder + "/Assets.xcassets/" + name;
+                
+                DIR* iconsetDir = opendir(iconsetPath.c_str());
+                if (iconsetDir != NULL) {
+                    dirent* iconFile;
+                    while ((iconFile = readdir(iconsetDir)) != NULL) {
+                        string iconName = iconFile->d_name;
+                        if (iconName.find(".png") != string::npos) {
+                            possibleIconPaths.push_back(iconsetPath + "/" + iconName);
+                        }
+                    }
+                    closedir(iconsetDir);
+                }
+            }
+        }
+        closedir(dir);
+    }
+    
+    for (const string& iconPath : possibleIconPaths) {
+        if (IsFileExists(iconPath.c_str())) {
+            string iconData;
+            if (ReadFile(iconPath.c_str(), iconData)) {
+                ZBase64 b64;
+                iconBase64 = b64.Encode(iconData.c_str(), iconData.size());
+                return true;
+            }
+        }
+    }
+    
+    return false;
+}
+
 bool ZAppBundle::GetAppInfoJson(JValue& jvInfo) {
     if (!FindAppFolder(m_strAppFolder, m_strAppFolder)) {
         ZLog::ErrorV(">>> Can't Find App Folder! %s\n", m_strAppFolder.c_str());
@@ -23,24 +103,24 @@ bool ZAppBundle::GetAppInfoJson(JValue& jvInfo) {
 
     jvInfo["path"] = m_strAppFolder;
     
-    // Get main app info
     if (!GetSignFolderInfo(m_strAppFolder, jvInfo, true)) {
         ZLog::ErrorV(">>> Can't Get App Info from Info.plist! %s\n", m_strAppFolder.c_str());
         return false;
     }
 
-    // Get all embedded frameworks, plugins, and extensions
     JValue jvComponents;
     CollectAppInfo(m_strAppFolder, jvComponents);
     if (!jvComponents.isNull()) {
         jvInfo["components"] = jvComponents;
     }
 
-    // Check for provisioning profile
     string provPath = m_strAppFolder + "/embedded.mobileprovision";
     jvInfo["has_provisioning_profile"] = IsFileExists(provPath.c_str());
 
-    
+    string iconBase64;
+    if (GetAppIcon(m_strAppFolder, iconBase64)) {
+        jvInfo["icon_base64"] = iconBase64;
+    }
 
     return true;
 }
@@ -86,7 +166,8 @@ void ZAppBundle::CollectAppInfo(const string& strFolder, JValue& jvInfo) {
 
 
 
-bool ZAppBundle::FindAppFolder(const string &strFolder, string &strAppFolder) {
+// Global function for use in other files
+bool FindAppFolder(const string &strFolder, string &strAppFolder) {
   if (IsPathSuffix(strFolder, ".app") || IsPathSuffix(strFolder, ".appex")) {
     strAppFolder = strFolder;
     return true;
@@ -128,6 +209,11 @@ bool ZAppBundle::FindAppFolder(const string &strFolder, string &strAppFolder) {
   return false;
 }
 
+// Class method delegates to the global function
+bool ZAppBundle::FindAppFolder(const string &strFolder, string &strAppFolder) {
+  return ::FindAppFolder(strFolder, strAppFolder);
+}
+
 bool ZAppBundle::GetSignFolderInfo(const string &strFolder, JValue &jvNode,
                                    bool bGetName) {
   JValue jvInfo;
@@ -147,9 +233,9 @@ bool ZAppBundle::GetSignFolderInfo(const string &strFolder, JValue &jvNode,
   SHASumBase64(strInfoPlistData, strInfoPlistSHA1Base64,
                strInfoPlistSHA256Base64);
 
-  jvNode["bid"] = strBundleId;
-  jvNode["bver"] = strBundleVersion;
-  jvNode["exec"] = strBundleExe;
+  jvNode["bundle_id"] = strBundleId;
+  jvNode["bundle_version"] = strBundleVersion;
+  jvNode["exec_name"] = strBundleExe;
   jvNode["sha1"] = strInfoPlistSHA1Base64;
   jvNode["sha2"] = strInfoPlistSHA256Base64;
 
@@ -158,7 +244,7 @@ bool ZAppBundle::GetSignFolderInfo(const string &strFolder, JValue &jvNode,
     if (strBundleName.empty()) {
       strBundleName = jvInfo["CFBundleName"].asCString();
     }
-    jvNode["name"] = strBundleName;
+    jvNode["appname"] = strBundleName;
   }
 
   return true;
@@ -540,7 +626,6 @@ bool ZAppBundle::SignFolder(arksigningAsset *pSignAsset,
         return false;
     }
 
-    // ... [code for modifying bundle ID, display name, and version remains unchanged]
 
     if (dontGenerateEmbeddedMobileProvision) {
         if (!RemoveEmbeddedMobileProvision(m_strAppFolder)) {

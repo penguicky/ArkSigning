@@ -4,12 +4,16 @@
 #include "openssl.h"
 #include <vector>
 
+// Global function for finding app folders
+bool FindAppFolder(const string &strFolder, string &strAppFolder);
+
 class ZAppBundle {
 public:
   ZAppBundle();
 
 public:
     bool GetAppInfoJson(JValue& jvInfo);
+    bool GetAppIcon(const string& appFolder, string& iconBase64);
 
   bool SignFolder(arksigningAsset *pSignAsset, const string &strFolder,
                   const string &strBundleID, const string &strBundleVersion,

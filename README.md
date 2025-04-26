@@ -171,7 +171,7 @@ options:
 -p, --password          Password for private key or p12 file.
 -b, --bundle_id         New bundle id to change.
 -n, --bundle_name       New bundle name to change.
---info, --info          Output app information in JSON format.
+-I, --info             Output app information in JSON format, including app icon in base64.
 -r, --bundle_version    New bundle version to change.
 -e, --entitlements      New entitlements to change.
 -z, --zip_level         Compressed level when output the ipa file. (0-9)
@@ -183,6 +183,12 @@ options:
 -E, --no-embed-profile  Don't generate embedded mobile provision.
 -v, --version           Shows version.
 -h, --help              Shows help (this message).
+
+Bulk signing options:
+-B, --bulk              Enable bulk signing mode.
+--inputfolder           Folder containing unsigned apps to process.
+--outputfolder          Destination folder for signed apps.
+--parallel              Enable parallel processing with optional thread count.
 ```
 
 1. Show mach-o and codesignature segment info.
@@ -225,14 +231,29 @@ options:
 ./arksigning -w -l "@executable_path/demo.dylib" demo.app/execute
 ```
 
-9. parse app info.
+9. Don't generate embedded mobile provision.
+```bash
+./arksigning -k -E p12file.p12 -m mpfile.mobileprovison -o output.ipa -z 9 demo.ipa
+```
+
+10. Show app info with app icon in base64 format.
 ```bash
 ./arksigning --info app.ipa
 ```
 
-10. Don't generate embedded mobile provision.
+11. Bulk sign all apps in a folder.
 ```bash
-./arksigning -k -E p12file.p12 -m mpfile.mobileprovison -o output.ipa -z 9 demo.ipa
+./arksigning --bulk --inputfolder ./unsigned_apps --outputfolder ./signed_apps -k dev.p12 -p 123 -m dev.prov
+```
+
+12. Bulk sign with parallel processing (auto-detect thread count).
+```bash
+./arksigning --bulk --inputfolder ./unsigned_apps --outputfolder ./signed_apps -k dev.p12 -p 123 -m dev.prov --parallel
+```
+
+13. Bulk sign with specified thread count.
+```bash
+./arksigning --bulk --inputfolder ./unsigned_apps --outputfolder ./signed_apps -k dev.p12 -p 123 -m dev.prov --parallel 4
 ```
 
 ## How to sign quickly?
@@ -241,7 +262,23 @@ You can unzip the ipa file at first, and then using arksigning to sign folder wi
 At the first time of sign, arksigning will perform the complete signing and cache the signed info into *.arksigning_cache* dir at the current path.
 When you re-sign the folder with other assets next time, arksigning will use the cache to accelerate the operation. Extremely fast! You can have a try!
 
+For bulk signing of multiple apps, use the `--bulk` mode with `--parallel` for maximum performance. This allows processing multiple apps simultaneously using multithreading.
+
+## Changelog
+
+### v0.6 (2025-04-26)
+- Added app icon retrieval in base64 format when using `--info` flag to retrive app info
+- Implemented bulk signing feature with `--bulk`
+- Added parallel processing support with `--parallel` option
+
+### v0.5
+- Added support for removing embedded.mobileprovision with `-E` flag
+
 ## Credits
 
-> arinawzad: [Github](https://github.com/arinawzad) - Added support for removing embedded.mobileprovision
-
+- **NabzClan** ([Website](https://nabzclan.vip))
+  - Dev Team
+- **arinawzad** ([Github](https://github.com/arinawzad))
+  - Added support for removing embedded.mobileprovision
+- **zhlynn** ([Github](https://github.com/zhlynn))
+  - Original Creator
