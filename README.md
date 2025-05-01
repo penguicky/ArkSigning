@@ -276,7 +276,7 @@ For bulk signing of multiple apps, use the `--bulk` mode with `--parallel` for m
 
 ## Credits
  -**SignerVIP** ([Website](https://signer.vip))
-  -Dev Zefie
+  
 - **NabzClan** ([Website](https://nabzclan.vip))
   - Dev Team
 - **arinawzad** ([Github](https://github.com/arinawzad))
