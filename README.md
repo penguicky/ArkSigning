@@ -275,7 +275,8 @@ For bulk signing of multiple apps, use the `--bulk` mode with `--parallel` for m
 - Added support for removing embedded.mobileprovision with `-E` flag
 
 ## Credits
-
+-**SignerVIP** ([Website](https://signer.vip))
+  -Dev Zefie
 - **NabzClan** ([Website](https://nabzclan.vip))
   - Dev Team
 - **arinawzad** ([Github](https://github.com/arinawzad))
