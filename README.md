@@ -189,6 +189,7 @@ Bulk signing options:
 --inputfolder           Folder containing unsigned apps to process.
 --outputfolder          Destination folder for signed apps.
 --parallel              Enable parallel processing with optional thread count.
+--base-url\t\tBase URL used to generate OTA link (e.g., https://signer.vip/signed/)
 ```
 
 1. Show mach-o and codesignature segment info.
@@ -255,7 +256,9 @@ Bulk signing options:
 ```bash
 ./arksigning --bulk --inputfolder ./unsigned_apps --outputfolder ./signed_apps -k dev.p12 -p 123 -m dev.prov --parallel 4
 ```
-
+14. Base URL used to generate OTA link
+./signervip --base-url\t\tBase URL used to generate OTA link (e.g., https://signer.vip/signed/)\n");
+...
 ## How to sign quickly?
 
 You can unzip the ipa file at first, and then using arksigning to sign folder with assets.
@@ -267,7 +270,7 @@ For bulk signing of multiple apps, use the `--bulk` mode with `--parallel` for m
 ## Changelog
 ### v0.6.1 (2025-05-01)
 NEW — Adds base URL used for OTA .plist generation
-NEW — Automatically generates a plist file and logs an itms-services:// install link
+Automatically generates a plist file and logs an itms-services:// install link
 
 ### v0.6 (2025-04-26)
 - Added app icon retrieval in base64 format when using `--info` flag to retrive app info
