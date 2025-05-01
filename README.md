@@ -265,6 +265,9 @@ When you re-sign the folder with other assets next time, arksigning will use the
 For bulk signing of multiple apps, use the `--bulk` mode with `--parallel` for maximum performance. This allows processing multiple apps simultaneously using multithreading.
 
 ## Changelog
+### v0.6.1 (2025-05-01)
+NEW — Adds base URL used for OTA .plist generation
+NEW — Automatically generates a plist file and logs an itms-services:// install link
 
 ### v0.6 (2025-04-26)
 - Added app icon retrieval in base64 format when using `--info` flag to retrive app info
