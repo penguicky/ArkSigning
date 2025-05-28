@@ -189,6 +189,7 @@ Bulk signing options:
 --inputfolder           Folder containing unsigned apps to process.
 --outputfolder          Destination folder for signed apps.
 --parallel              Enable parallel processing with optional thread count.
+--base-url              Base URL used to generate OTA link (e.g., https://signer.vip/signed/)
 ```
 
 1. Show mach-o and codesignature segment info.
@@ -255,7 +256,10 @@ Bulk signing options:
 ```bash
 ./arksigning --bulk --inputfolder ./unsigned_apps --outputfolder ./signed_apps -k dev.p12 -p 123 -m dev.prov --parallel 4
 ```
-
+14. Base URL used to generate OTA link
+```bash
+./signervip --base-url\t\tBase URL used to generate OTA link (e.g., https://signer.vip/signed/)\n");
+```
 ## How to sign quickly?
 
 You can unzip the ipa file at first, and then using arksigning to sign folder with assets.
@@ -265,6 +269,9 @@ When you re-sign the folder with other assets next time, arksigning will use the
 For bulk signing of multiple apps, use the `--bulk` mode with `--parallel` for maximum performance. This allows processing multiple apps simultaneously using multithreading.
 
 ## Changelog
+### v0.6.1 (2025-05-01)
+NEW — Adds base URL used for OTA .plist generation
+Automatically generates a plist file and logs an itms-services:// install link
 
 ### v0.6 (2025-04-26)
 - Added app icon retrieval in base64 format when using `--info` flag to retrive app info
@@ -275,7 +282,8 @@ For bulk signing of multiple apps, use the `--bulk` mode with `--parallel` for m
 - Added support for removing embedded.mobileprovision with `-E` flag
 
 ## Credits
-
+ -**SignerVIP** ([Website](https://signer.vip))
+  
 - **NabzClan** ([Website](https://nabzclan.vip))
   - Dev Team
 - **arinawzad** ([Github](https://github.com/arinawzad))
