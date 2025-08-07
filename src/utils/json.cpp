@@ -1,4 +1,5 @@
-#include "json.h"
+#include "utils/json.h"
+#include "utils/constants.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,10 +9,10 @@
 #include <inttypes.h>
 #include <math.h>
 #include <sys/stat.h>
-#include "base64.h"
+#include "utils/base64.h"
 
 #ifndef WIN32
-#define _atoi64(val) strtoll(val, NULL, 10)
+#define _atoi64(val) strtoll(val, nullptr, 10)
 #endif
 
 const JValue JValue::null;
@@ -55,6 +56,13 @@ JValue::JValue(const string &val) : m_eType(E_STRING)
 JValue::JValue(const JValue &other)
 {
 	CopyValue(other);
+}
+
+JValue::JValue(JValue &&other) noexcept : m_Value(other.m_Value), m_eType(other.m_eType)
+{
+	// Take ownership of the other's resources
+	other.m_eType = E_NULL;
+	other.m_Value.vFloat = 0;  // Clear the union to prevent double-free
 }
 
 JValue::JValue(const char *val, size_t len) : m_eType(E_DATA)
@@ -134,7 +142,7 @@ bool JValue::isEmpty() const
 		return (0 == m_Value.vDate);
 		break;
 	case E_DATA:
-		return (NULL == m_Value.vData) ? true : m_Value.vData->empty();
+		return (nullptr == m_Value.vData) ? true : m_Value.vData->empty();
 		break;
 	}
 	return true;
@@ -172,12 +180,15 @@ JValue::operator bool() const
 
 char *JValue::NewString(const char *cstr)
 {
-	char *str = NULL;
-	if (NULL != cstr)
+	char *str = nullptr;
+	if (nullptr != cstr)
 	{
-		size_t len = (strlen(cstr) + 1) * sizeof(char);
-		str = (char *)malloc(len);
-		memcpy(str, cstr, len);
+		size_t len = strlen(cstr) + 1;
+		str = static_cast<char*>(malloc(len));
+		if (nullptr != str)  // Check for allocation failure
+		{
+			memcpy(str, cstr, len);
+		}
 	}
 	return str;
 }
@@ -188,24 +199,24 @@ void JValue::CopyValue(const JValue &src)
 	switch (m_eType)
 	{
 	case E_ARRAY:
-		m_Value.vArray = (NULL == src.m_Value.vArray) ? NULL : new vector<JValue>(*(src.m_Value.vArray));
+		m_Value.vArray = (nullptr == src.m_Value.vArray) ? nullptr : new vector<JValue>(*(src.m_Value.vArray));
 		break;
 	case E_OBJECT:
-		m_Value.vObject = (NULL == src.m_Value.vObject) ? NULL : new map<string, JValue>(*(src.m_Value.vObject));
+		m_Value.vObject = (nullptr == src.m_Value.vObject) ? nullptr : new map<string, JValue>(*(src.m_Value.vObject));
 		break;
 	case E_STRING:
-		m_Value.vString = (NULL == src.m_Value.vString) ? NULL : NewString(src.m_Value.vString);
+		m_Value.vString = (nullptr == src.m_Value.vString) ? nullptr : NewString(src.m_Value.vString);
 		break;
 	case E_DATA:
 	{
-		if (NULL != src.m_Value.vData)
+		if (nullptr != src.m_Value.vData)
 		{
 			m_Value.vData = new string();
 			*m_Value.vData = *src.m_Value.vData;
 		}
 		else
 		{
-			m_Value.vData = NULL;
+			m_Value.vData = nullptr;
 		}
 	}
 	break;
@@ -236,28 +247,28 @@ void JValue::Free()
 	break;
 	case E_STRING:
 	{
-		if (NULL != m_Value.vString)
+		if (nullptr != m_Value.vString)
 		{
 			free(m_Value.vString);
-			m_Value.vString = NULL;
+			m_Value.vString = nullptr;
 		}
 	}
 	break;
 	case E_ARRAY:
 	{
-		if (NULL != m_Value.vArray)
+		if (nullptr != m_Value.vArray)
 		{
 			delete m_Value.vArray;
-			m_Value.vArray = NULL;
+			m_Value.vArray = nullptr;
 		}
 	}
 	break;
 	case E_OBJECT:
 	{
-		if (NULL != m_Value.vObject)
+		if (nullptr != m_Value.vObject)
 		{
 			delete m_Value.vObject;
-			m_Value.vObject = NULL;
+			m_Value.vObject = nullptr;
 		}
 	}
 	break;
@@ -268,10 +279,10 @@ void JValue::Free()
 	break;
 	case E_DATA:
 	{
-		if (NULL != m_Value.vData)
+		if (nullptr != m_Value.vData)
 		{
 			delete m_Value.vData;
-			m_Value.vData = NULL;
+			m_Value.vData = nullptr;
 		}
 	}
 	break;
@@ -291,6 +302,23 @@ JValue &JValue::operator=(const JValue &other)
 	return (*this);
 }
 
+JValue &JValue::operator=(JValue &&other) noexcept
+{
+	if (this != &other)
+	{
+		Free();  // Clean up current resources
+
+		// Take ownership of other's resources
+		m_eType = other.m_eType;
+		m_Value = other.m_Value;
+
+		// Leave other in a valid but empty state
+		other.m_eType = E_NULL;
+		other.m_Value.vFloat = 0;
+	}
+	return (*this);
+}
+
 JValue::TYPE JValue::type() const
 {
 	return m_eType;
@@ -298,7 +326,7 @@ JValue::TYPE JValue::type() const
 
 int JValue::asInt() const
 {
-	return (int)asInt64();
+	return static_cast<int>(asInt64());
 }
 
 int64_t JValue::asInt64() const
@@ -312,7 +340,7 @@ int64_t JValue::asInt64() const
 		return m_Value.vBool ? 1 : 0;
 		break;
 	case E_FLOAT:
-		return int(m_Value.vFloat);
+		return static_cast<int>(m_Value.vFloat);
 		break;
 	case E_STRING:
 		return _atoi64(asCString());
@@ -359,19 +387,19 @@ bool JValue::asBool() const
 		return (0.0 != m_Value.vFloat);
 		break;
 	case E_ARRAY:
-		return (NULL == m_Value.vArray) ? false : (m_Value.vArray->size() > 0);
+		return (nullptr == m_Value.vArray) ? false : (m_Value.vArray->size() > 0);
 		break;
 	case E_OBJECT:
-		return (NULL == m_Value.vObject) ? false : (m_Value.vObject->size() > 0);
+		return (nullptr == m_Value.vObject) ? false : (m_Value.vObject->size() > 0);
 		break;
 	case E_STRING:
-		return (NULL == m_Value.vString) ? false : (strlen(m_Value.vString) > 0);
+		return (nullptr == m_Value.vString) ? false : (strlen(m_Value.vString) > 0);
 		break;
 	case E_DATE:
 		return (m_Value.vDate > 0);
 		break;
 	case E_DATA:
-		return (NULL == m_Value.vData) ? false : (m_Value.vData->size() > 0);
+		return (nullptr == m_Value.vData) ? false : (m_Value.vData->size() > 0);
 		break;
 	default:
 		break;
@@ -389,14 +417,14 @@ string JValue::asString() const
 	case E_INT:
 	{
 		char buf[256];
-		sprintf(buf, "%" PRId64, m_Value.vInt64);
+		snprintf(buf, sizeof(buf), "%" PRId64, m_Value.vInt64);
 		return buf;
 	}
 	break;
 	case E_FLOAT:
 	{
 		char buf[256];
-		sprintf(buf, "%lf", m_Value.vFloat);
+		snprintf(buf, sizeof(buf), "%lf", m_Value.vFloat);
 		return buf;
 	}
 	break;
@@ -407,7 +435,7 @@ string JValue::asString() const
 		return "object";
 		break;
 	case E_STRING:
-		return (NULL == m_Value.vString) ? "" : m_Value.vString;
+		return (nullptr == m_Value.vString) ? "" : m_Value.vString;
 		break;
 	case E_DATE:
 		return "date";
@@ -423,7 +451,7 @@ string JValue::asString() const
 
 const char *JValue::asCString() const
 {
-	if (E_STRING == m_eType && NULL != m_Value.vString)
+	if (E_STRING == m_eType && nullptr != m_Value.vString)
 	{
 		return m_Value.vString;
 	}
@@ -471,7 +499,7 @@ const JValue &JValue::operator[](int64_t index) const
 
 JValue &JValue::operator[](size_t index)
 {
-	if (E_ARRAY != m_eType || NULL == m_Value.vArray)
+	if (E_ARRAY != m_eType || nullptr == m_Value.vArray)
 	{
 		Free();
 		m_eType = E_ARRAY;
@@ -493,7 +521,7 @@ JValue &JValue::operator[](size_t index)
 
 const JValue &JValue::operator[](size_t index) const
 {
-	if (E_ARRAY == m_eType && NULL != m_Value.vArray)
+	if (E_ARRAY == m_eType && nullptr != m_Value.vArray)
 	{
 		if (index < m_Value.vArray->size())
 		{
@@ -516,7 +544,7 @@ const JValue &JValue::operator[](const string &key) const
 JValue &JValue::operator[](const char *key)
 {
 	map<string, JValue>::iterator it;
-	if (E_OBJECT != m_eType || NULL == m_Value.vObject)
+	if (E_OBJECT != m_eType || nullptr == m_Value.vObject)
 	{
 		Free();
 		m_eType = E_OBJECT;
@@ -536,7 +564,7 @@ JValue &JValue::operator[](const char *key)
 
 const JValue &JValue::operator[](const char *key) const
 {
-	if (E_OBJECT == m_eType && NULL != m_Value.vObject)
+	if (E_OBJECT == m_eType && nullptr != m_Value.vObject)
 	{
 		map<string, JValue>::const_iterator it = m_Value.vObject->find(key);
 		if (it != m_Value.vObject->end())
@@ -840,7 +868,7 @@ time_t JValue::asDate() const
 	{
 		if (isDateString())
 		{
-			tm ft = {0};
+			tm ft = {};
 			sscanf(m_Value.vString + 5, "%04d-%02d-%02dT%02d:%02d:%02dZ", &ft.tm_year, &ft.tm_mon, &ft.tm_mday, &ft.tm_hour, &ft.tm_min, &ft.tm_sec);
 			ft.tm_mon -= 1;
 			ft.tm_year -= 1900;
@@ -938,9 +966,9 @@ bool JValue::readPList(const string &strdoc, string *pstrerr /*= NULL*/)
 	return readPList(strdoc.data(), strdoc.size(), pstrerr);
 }
 
-bool JValue::readPList(const char *pdoc, size_t len /*= 0*/, string *pstrerr /*= NULL*/)
+bool JValue::readPList(const char *pdoc, size_t len /*= 0*/, string *pstrerr /*= nullptr*/)
 {
-	if (NULL == pdoc)
+	if (nullptr == pdoc)
 	{
 		return false;
 	}
@@ -1640,7 +1668,7 @@ void JReader::error(string &strmsg) const
 		}
 	}
 	char msg[64];
-	sprintf(msg, "Error: Line %d, Column %d, ", row, int(m_pErr - plast) + 1);
+	snprintf(msg, sizeof(msg), "Error: Line %d, Column %d, ", row, int(m_pErr - plast) + 1);
 	strmsg += msg + m_strErr + "\n";
 }
 
@@ -1847,7 +1875,7 @@ bool JWriter::isMultineArray(const JValue &jval)
 {
 	m_childValues.clear();
 	size_t usize = jval.size();
-	bool isMultiLine = (usize >= 25);
+	bool isMultiLine = (usize >= ArkSigning::Constants::MAX_ARRAY_INLINE_SIZE);
 	if (!isMultiLine)
 	{
 		for (size_t i = 0; i < usize; i++)
@@ -1870,7 +1898,7 @@ bool JWriter::isMultineArray(const JValue &jval)
 			lineLength += m_childValues[i].length();
 		}
 		m_bAddChild = false;
-		isMultiLine = lineLength >= 75;
+		isMultiLine = lineLength >= ArkSigning::Constants::MAX_LINE_LENGTH;
 	}
 	return isMultiLine;
 }
@@ -1890,14 +1918,14 @@ void JWriter::PushValue(const string &strval)
 string JWriter::v2s(int64_t val)
 {
 	char buf[32];
-	sprintf(buf, "%" PRId64, val);
+	snprintf(buf, sizeof(buf), "%" PRId64, val);
 	return buf;
 }
 
 string JWriter::v2s(double val)
 {
 	char buf[512];
-	sprintf(buf, "%g", val);
+	snprintf(buf, sizeof(buf), "%g", val);
 	return buf;
 }
 
@@ -1905,7 +1933,7 @@ string JWriter::d2s(time_t t)
 {
 	//t = (t > 0x7933F8EFF) ? (0x7933F8EFF - 1) : t;
 
-	tm ft = {0};
+	tm ft = {};
 
 #ifdef _WIN32
 	localtime_s(&ft, &t);
@@ -1921,7 +1949,7 @@ string JWriter::d2s(time_t t)
 	ft.tm_sec = (ft.tm_sec < 0) ? 0 : ft.tm_sec;
 
 	char szDate[64] = {0};
-	sprintf(szDate, "%04d-%02d-%02dT%02d:%02d:%02dZ", ft.tm_year + 1900, ft.tm_mon + 1, ft.tm_mday, ft.tm_hour, ft.tm_min, ft.tm_sec);
+	snprintf(szDate, sizeof(szDate), "%04d-%02d-%02dT%02d:%02d:%02dZ", ft.tm_year + 1900, ft.tm_mon + 1, ft.tm_mday, ft.tm_hour, ft.tm_min, ft.tm_sec);
 	return szDate;
 }
 
@@ -2096,7 +2124,7 @@ bool PReader::readValue(JValue &pval, Token &token)
 		string strval;
 		decodeString(token, strval);
 
-		tm ft = {0};
+		tm ft = {};
 		sscanf(strval.c_str(), "%04d-%02d-%02dT%02d:%02d:%02dZ", &ft.tm_year, &ft.tm_mon, &ft.tm_mday, &ft.tm_hour, &ft.tm_min, &ft.tm_sec);
 		ft.tm_mon -= 1;
 		ft.tm_year -= 1900;
@@ -2500,7 +2528,7 @@ void PReader::error(string &strmsg) const
 		}
 	}
 	char msg[64];
-	sprintf(msg, "Error: Line %d, Column %d, ", row, int(m_pErr - plast) + 1);
+	snprintf(msg, sizeof(msg), "Error: Line %d, Column %d, ", row, int(m_pErr - plast) + 1);
 	strmsg += msg + m_strErr + "\n";
 }
 
@@ -2562,14 +2590,14 @@ bool PReader::readUnicode(const char *pcur, size_t size, JValue &pv)
 		return false;
 	}
 
-	uint16_t *unistr = (uint16_t *)malloc(2 * size);
-	memcpy(unistr, pcur, 2 * size);
+	auto unistr = unique_ptr<uint16_t[]>(new uint16_t[size]);
+	memcpy(unistr.get(), pcur, 2 * size);
 	for (size_t i = 0; i < size; i++)
 	{
-		byteConvert((uint8_t *)(unistr + i), 2);
+		byteConvert(reinterpret_cast<uint8_t*>(unistr.get() + i), 2);
 	}
 
-	char *outbuf = (char *)malloc(3 * (size + 1));
+	auto outbuf = unique_ptr<char[]>(new char[3 * (size + 1)]);
 
 	size_t p = 0;
 	size_t i = 0;
@@ -2579,29 +2607,26 @@ bool PReader::readUnicode(const char *pcur, size_t size, JValue &pv)
 		wc = unistr[i++];
 		if (wc >= 0x800)
 		{
-			outbuf[p++] = (char)(0xE0 + ((wc >> 12) & 0xF));
-			outbuf[p++] = (char)(0x80 + ((wc >> 6) & 0x3F));
-			outbuf[p++] = (char)(0x80 + (wc & 0x3F));
+			outbuf[p++] = static_cast<char>(0xE0 + ((wc >> 12) & 0xF));
+			outbuf[p++] = static_cast<char>(0x80 + ((wc >> 6) & 0x3F));
+			outbuf[p++] = static_cast<char>(0x80 + (wc & 0x3F));
 		}
 		else if (wc >= 0x80)
 		{
-			outbuf[p++] = (char)(0xC0 + ((wc >> 6) & 0x1F));
-			outbuf[p++] = (char)(0x80 + (wc & 0x3F));
+			outbuf[p++] = static_cast<char>(0xC0 + ((wc >> 6) & 0x1F));
+			outbuf[p++] = static_cast<char>(0x80 + (wc & 0x3F));
 		}
 		else
 		{
-			outbuf[p++] = (char)(wc & 0x7F);
+			outbuf[p++] = static_cast<char>(wc & 0x7F);
 		}
 	}
 
 	outbuf[p] = 0;
 
-	pv = outbuf;
+	pv = outbuf.get();
 
-	free(outbuf);
-	outbuf = NULL;
-	free(unistr);
-	unistr = NULL;
+	// Smart pointers automatically clean up, no manual free needed
 
 	return true;
 }
@@ -2690,27 +2715,27 @@ bool PReader::readBinaryValue(const char *&pcur, JValue &pv)
 	{
 		size_t size = 1 << val;
 
-		uint8_t *buf = (uint8_t *)malloc(size);
-		memcpy(buf, pcur, size);
-		byteConvert(buf, size);
+		auto buf = unique_ptr<uint8_t[]>(new uint8_t[size]);
+		memcpy(buf.get(), pcur, size);
+		byteConvert(buf.get(), size);
 
 		switch (size)
 		{
 		case sizeof(float):
-			pv = (double)(*(float *)buf);
+			pv = static_cast<double>(*reinterpret_cast<float*>(buf.get()));
+			break;
 		case sizeof(double):
-			pv = (*(double *)buf);
+			pv = *reinterpret_cast<double*>(buf.get());
 			break;
 		default:
 		{
 			assert(0);
-			free(buf);
 			return false;
 		}
 		break;
 		}
 
-		free(buf);
+		// Smart pointer automatically cleans up
 	}
 	break;
 
@@ -2719,11 +2744,11 @@ bool PReader::readBinaryValue(const char *&pcur, JValue &pv)
 		if (3 == val)
 		{
 			size_t size = 1 << val;
-			uint8_t *buf = (uint8_t *)malloc(size);
-			memcpy(buf, pcur, size);
-			byteConvert(buf, size);
-			pv.assignDate(((time_t)(*(double *)buf)) + 978278400);
-			free(buf);
+			auto buf = unique_ptr<uint8_t[]>(new uint8_t[size]);
+			memcpy(buf.get(), pcur, size);
+			byteConvert(buf.get(), size);
+			pv.assignDate(static_cast<time_t>(*reinterpret_cast<double*>(buf.get())) + 978278400);
+			// Smart pointer automatically cleans up
 		}
 		else
 		{
@@ -3007,7 +3032,7 @@ void PWriter::FastWriteValue(const JValue &pval, string &strdoc, string &strinde
 		strdoc += strindent;
 		strdoc += "<integer>";
 		char temp[32] = {0};
-		sprintf(temp, "%" PRId64, pval.asInt64());
+		snprintf(temp, sizeof(temp), "%" PRId64, pval.asInt64());
 		strdoc += temp;
 		strdoc += "</integer>\n";
 	}
@@ -3026,11 +3051,11 @@ void PWriter::FastWriteValue(const JValue &pval, string &strdoc, string &strinde
 			char temp[32] = {0};
 			if (floor(v) == v)
 			{
-				sprintf(temp, "%" PRId64, (int64_t)v);
+				snprintf(temp, sizeof(temp), "%" PRId64, (int64_t)v);
 			}
 			else
 			{
-				sprintf(temp, "%.15lf", v);
+				snprintf(temp, sizeof(temp), "%.15lf", v);
 			}
 			strdoc += temp;
 		}

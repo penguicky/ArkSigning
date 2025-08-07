@@ -1,4 +1,5 @@
-#include "base64.h"
+#include "utils/base64.h"
+#include "utils/constants.h"
 #include <string.h>
 
 #define B0(a) (a & 0xFF)
@@ -12,23 +13,26 @@ ZBase64::ZBase64(void)
 
 ZBase64::~ZBase64(void)
 {
-	if (!m_arrEnc.empty())
-	{
-		for (size_t i = 0; i < m_arrEnc.size(); i++)
-		{
-			delete[] m_arrEnc[i];
-		}
-		m_arrEnc.clear();
-	}
+	// Smart pointers automatically clean up, no manual deletion needed
+	m_arrEnc.clear();
+	m_arrDec.clear();
+}
 
-	if (!m_arrDec.empty())
+ZBase64::ZBase64(ZBase64 &&other) noexcept
+	: m_arrDec(std::move(other.m_arrDec)), m_arrEnc(std::move(other.m_arrEnc))
+{
+	// other's vectors are now empty due to move
+}
+
+ZBase64 &ZBase64::operator=(ZBase64 &&other) noexcept
+{
+	if (this != &other)
 	{
-		for (size_t i = 0; i < m_arrDec.size(); i++)
-		{
-			delete[] m_arrDec[i];
-		}
-		m_arrDec.clear();
+		m_arrDec = std::move(other.m_arrDec);
+		m_arrEnc = std::move(other.m_arrEnc);
+		// other's vectors are now empty due to move
 	}
+	return *this;
 }
 
 char ZBase64::GetB64char(int nIndex)
@@ -79,22 +83,20 @@ const char *ZBase64::Encode(const char *szSrc, int nSrcLen)
 		return "";
 	}
 
-	char *szEnc = new char[nSrcLen * 3 + 128];
-	m_arrEnc.push_back(szEnc);
+	auto szEnc = unique_ptr<char[]>(new char[nSrcLen * 3 + ArkSigning::Constants::BASE64_BUFFER_PADDING]);
+	char *p64 = szEnc.get();
+	m_arrEnc.push_back(std::move(szEnc));
 
 	int i = 0;
-	int len = 0;
-	unsigned char *psrc = (unsigned char *)szSrc;
-	char *p64 = szEnc;
+	unsigned char *psrc = reinterpret_cast<unsigned char*>(const_cast<char*>(szSrc));
 	for (i = 0; i < nSrcLen - 3; i += 3)
 	{
-		unsigned long ulTmp = *(unsigned long *)psrc;
+		unsigned long ulTmp = *reinterpret_cast<unsigned long*>(psrc);
 		int b0 = GetB64char((B0(ulTmp) >> 2) & 0x3F);
 		int b1 = GetB64char((B0(ulTmp) << 6 >> 2 | B1(ulTmp) >> 4) & 0x3F);
 		int b2 = GetB64char((B1(ulTmp) << 4 >> 2 | B2(ulTmp) >> 6) & 0x3F);
 		int b3 = GetB64char((B2(ulTmp) << 2 >> 2) & 0x3F);
-		*((unsigned long *)p64) = b0 | b1 << 8 | b2 << 16 | b3 << 24;
-		len += 4;
+		*reinterpret_cast<unsigned long*>(p64) = b0 | b1 << 8 | b2 << 16 | b3 << 24;
 		p64 += 4;
 		psrc += 3;
 	}
@@ -105,17 +107,16 @@ const char *ZBase64::Encode(const char *szSrc, int nSrcLen)
 		unsigned long ulTmp = 0;
 		for (int j = 0; j < rest; ++j)
 		{
-			*(((unsigned char *)&ulTmp) + j) = *psrc++;
+			*(reinterpret_cast<unsigned char*>(&ulTmp) + j) = *psrc++;
 		}
 		p64[0] = GetB64char((B0(ulTmp) >> 2) & 0x3F);
 		p64[1] = GetB64char((B0(ulTmp) << 6 >> 2 | B1(ulTmp) >> 4) & 0x3F);
 		p64[2] = rest > 1 ? GetB64char((B1(ulTmp) << 4 >> 2 | B2(ulTmp) >> 6) & 0x3F) : '=';
 		p64[3] = rest > 2 ? GetB64char((B2(ulTmp) << 2 >> 2) & 0x3F) : '=';
 		p64 += 4;
-		len += 4;
 	}
 	*p64 = '\0';
-	return szEnc;
+	return m_arrEnc.back().get();
 }
 
 const char *ZBase64::Encode(const string &strInput)
@@ -135,25 +136,23 @@ const char *ZBase64::Decode(const char *szSrc, int nSrcLen, int *pDecLen)
 		return "";
 	}
 
-	char *szDec = new char[nSrcLen];
-	m_arrDec.push_back(szDec);
+	auto szDec = unique_ptr<char[]>(new char[nSrcLen]);
+	char *pbuf = szDec.get();
+	m_arrDec.push_back(std::move(szDec));
 
 	int i = 0;
-	int len = 0;
-	unsigned char *psrc = (unsigned char *)szSrc;
-	char *pbuf = szDec;
+	unsigned char *psrc = reinterpret_cast<unsigned char*>(const_cast<char*>(szSrc));
 	for (i = 0; i < nSrcLen - 4; i += 4)
 	{
-		unsigned long ulTmp = *(unsigned long *)psrc;
+		unsigned long ulTmp = *reinterpret_cast<unsigned long*>(psrc);
 
-		int b0 = (GetB64Index((char)B0(ulTmp)) << 2 | GetB64Index((char)B1(ulTmp)) << 2 >> 6) & 0xFF;
-		int b1 = (GetB64Index((char)B1(ulTmp)) << 4 | GetB64Index((char)B2(ulTmp)) << 2 >> 4) & 0xFF;
-		int b2 = (GetB64Index((char)B2(ulTmp)) << 6 | GetB64Index((char)B3(ulTmp)) << 2 >> 2) & 0xFF;
+		int b0 = (GetB64Index(static_cast<char>(B0(ulTmp))) << 2 | GetB64Index(static_cast<char>(B1(ulTmp))) << 2 >> 6) & 0xFF;
+		int b1 = (GetB64Index(static_cast<char>(B1(ulTmp))) << 4 | GetB64Index(static_cast<char>(B2(ulTmp))) << 2 >> 4) & 0xFF;
+		int b2 = (GetB64Index(static_cast<char>(B2(ulTmp))) << 6 | GetB64Index(static_cast<char>(B3(ulTmp))) << 2 >> 2) & 0xFF;
 
-		*((unsigned long *)pbuf) = b0 | b1 << 8 | b2 << 16;
+		*reinterpret_cast<unsigned long*>(pbuf) = b0 | b1 << 8 | b2 << 16;
 		psrc += 4;
 		pbuf += 3;
-		len += 3;
 	}
 
 	if (i < nSrcLen)
@@ -162,35 +161,32 @@ const char *ZBase64::Decode(const char *szSrc, int nSrcLen, int *pDecLen)
 		unsigned long ulTmp = 0;
 		for (int j = 0; j < rest; ++j)
 		{
-			*(((unsigned char *)&ulTmp) + j) = *psrc++;
+			*(reinterpret_cast<unsigned char*>(&ulTmp) + j) = *psrc++;
 		}
 
-		int b0 = (GetB64Index((char)B0(ulTmp)) << 2 | GetB64Index((char)B1(ulTmp)) << 2 >> 6) & 0xFF;
+		int b0 = (GetB64Index(static_cast<char>(B0(ulTmp))) << 2 | GetB64Index(static_cast<char>(B1(ulTmp))) << 2 >> 6) & 0xFF;
 		*pbuf++ = b0;
-		len++;
 
 		if ('=' != B1(ulTmp) && '=' != B2(ulTmp))
 		{
-			int b1 = (GetB64Index((char)B1(ulTmp)) << 4 | GetB64Index((char)B2(ulTmp)) << 2 >> 4) & 0xFF;
+			int b1 = (GetB64Index(static_cast<char>(B1(ulTmp))) << 4 | GetB64Index(static_cast<char>(B2(ulTmp))) << 2 >> 4) & 0xFF;
 			*pbuf++ = b1;
-			len++;
 		}
 
 		if ('=' != B2(ulTmp) && '=' != B3(ulTmp))
 		{
-			int b2 = (GetB64Index((char)B2(ulTmp)) << 6 | GetB64Index((char)B3(ulTmp)) << 2 >> 2) & 0xFF;
+			int b2 = (GetB64Index(static_cast<char>(B2(ulTmp))) << 6 | GetB64Index(static_cast<char>(B3(ulTmp))) << 2 >> 2) & 0xFF;
 			*pbuf++ = b2;
-			len++;
 		}
 	}
 	*pbuf = '\0';
 
-	if (NULL != pDecLen)
+	if (nullptr != pDecLen)
 	{
-		*pDecLen = (int)(pbuf - szDec);
+		*pDecLen = static_cast<int>(pbuf - m_arrDec.back().get());
 	}
 
-	return szDec;
+	return m_arrDec.back().get();
 }
 
 const char *ZBase64::Decode(const char *szSrc, string &strOutput)

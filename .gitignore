@@ -1,0 +1,368 @@
+# ArkSigning - Comprehensive .gitignore
+# This file prevents build artifacts and temporary files from being tracked
+
+# ============================================================================
+# BUILD ARTIFACTS
+# ============================================================================
+
+# Object files
+*.o
+*.obj
+*.lo
+*.slo
+
+# Dependency files
+*.d
+*.dep
+
+# Compiled Dynamic libraries
+*.so
+*.so.*
+*.dylib
+*.dll
+
+# Compiled Static libraries
+*.a
+*.lib
+*.la
+
+# Executables
+arksigning
+arksigning.exe
+*.exe
+*.out
+*.app
+
+# ============================================================================
+# BUILD DIRECTORIES
+# ============================================================================
+
+# Build output directories
+build/
+Build/
+BUILD/
+bin/
+Bin/
+BIN/
+obj/
+Obj/
+OBJ/
+
+# CMake build directories
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile.cmake
+*.cmake
+
+# Xcode build directories
+*.xcodeproj/
+*.xcworkspace/
+DerivedData/
+
+# ============================================================================
+# COMPILER AND TOOLCHAIN
+# ============================================================================
+
+# GCC/Clang
+*.gch
+*.pch
+*.pdb
+*.idb
+*.ilk
+
+# Visual Studio
+*.vcxproj.user
+*.vcxproj.filters
+*.sdf
+*.opensdf
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+.vs/
+
+# Code::Blocks
+*.cbp
+*.layout
+*.depend
+
+# Qt Creator
+*.pro.user
+*.pro.user.*
+CMakeLists.txt.user*
+
+# ============================================================================
+# PACKAGE MANAGERS
+# ============================================================================
+
+# Conan
+conandata.yml
+conanfile.txt
+conaninfo.txt
+conanbuildinfo.*
+conan.lock
+
+# vcpkg
+vcpkg_installed/
+.vcpkg-root
+
+# ============================================================================
+# DEVELOPMENT TOOLS
+# ============================================================================
+
+# Debugging
+*.dSYM/
+*.dSYM.zip
+core
+core.*
+vgcore.*
+*.stackdump
+
+# Profiling
+*.prof
+gmon.out
+callgrind.out.*
+*.gcov
+*.gcda
+*.gcno
+
+# Valgrind
+*.memcheck
+*.helgrind
+*.drd
+
+# ============================================================================
+# EDITORS AND IDES
+# ============================================================================
+
+# Vim
+*.swp
+*.swo
+*~
+.vimrc.local
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Atom
+.atom/
+
+# CLion
+.idea/
+cmake-build-*/
+
+# ============================================================================
+# OPERATING SYSTEM
+# ============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.tmp
+*.temp
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ============================================================================
+# TEMPORARY AND LOG FILES
+# ============================================================================
+
+# Logs
+*.log
+*.log.*
+logs/
+*.out
+*.err
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.orig
+*.rej
+*.patch
+
+# Cache files
+*.cache
+.cache/
+*.pid
+
+# ============================================================================
+# DOCUMENTATION
+# ============================================================================
+
+# Generated documentation
+docs/html/
+docs/latex/
+docs/man/
+docs/rtf/
+docs/xml/
+Doxyfile.bak
+doxygen_warnings.txt
+
+# ============================================================================
+# TESTING
+# ============================================================================
+
+# Test results
+test_results/
+test_output/
+*.test
+*.trs
+check-*
+
+# Coverage reports
+coverage/
+*.coverage
+*.lcov
+htmlcov/
+
+# ============================================================================
+# SECURITY
+# ============================================================================
+
+# Private keys and certificates (be extra careful!)
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.der
+*.mobileprovision
+
+# Secrets and configuration
+.env
+.env.local
+.env.*.local
+secrets.txt
+config.local.*
+
+# ============================================================================
+# PROJECT SPECIFIC
+# ============================================================================
+
+# ArkSigning specific
+*.arksigning_debug/
+signed_apps/
+unsigned_apps/
+test_apps/
+
+# Signing artifacts
+*.ipa.signed
+*.app.signed
+entitlements.temp.*
+
+# ============================================================================
+# ARCHIVES AND PACKAGES
+# ============================================================================
+
+# Compressed files
+*.zip
+*.tar.gz
+*.tgz
+*.tar.bz2
+*.tbz2
+*.tar.xz
+*.txz
+*.7z
+*.rar
+
+# Package files
+*.deb
+*.rpm
+*.pkg
+*.dmg
+
+# ============================================================================
+# MISCELLANEOUS
+# ============================================================================
+
+# Backup files from editors
+*~
+*.bak
+*.backup
+*.old
+*.orig
+
+# Swap files
+*.swp
+*.swo
+
+# Lock files
+*.lock
+.lock-*
+
+# Node.js (if any JS tools are used)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python (if any Python tools are used)
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+
+# ============================================================================
+# CUSTOM IGNORES
+# ============================================================================
+
+# Add your custom ignores below this line
+# Example:
+# my_custom_file.txt
+# my_custom_directory/

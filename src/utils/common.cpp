@@ -1,9 +1,12 @@
-#include "common.h"
-#include "base64.h"
+#include "utils/common.h"
+#include "utils/base64.h"
 #include <cinttypes>
 #include <sys/stat.h>
 #include <inttypes.h>
 #include <openssl/sha.h>
+#include <functional>
+#include <thread>
+#include <atomic>
 
 #define PARSEVALIST(szFormatArgs, szArgs)                       \
 	ZBuffer buffer;                                             \
@@ -152,6 +155,22 @@ bool ReadFile(string &strData, const char *szFormatPath, ...)
 	return ReadFile(szPath, strData);
 }
 
+Optional<string> ReadFileOptional(const char *szFile)
+{
+	if (!szFile || !IsFileExists(szFile))
+	{
+		return Optional<string>();  // Return empty optional
+	}
+
+	string data;
+	if (ReadFile(szFile, data))
+	{
+		return Optional<string>(std::move(data));
+	}
+
+	return Optional<string>();  // Return empty optional on failure
+}
+
 bool AppendFile(const char *szFile, const char *szData, size_t sLen)
 {
 	FILE *fp = fopen(szFile, "ab+");
@@ -217,6 +236,11 @@ bool CreateFolderV(const char *szFormatPath, ...)
 
 int RemoveFolderCallBack(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf)
 {
+	// Suppress unused parameter warnings - parameters required by nftw() API
+	(void)sb;
+	(void)typeflag;
+	(void)ftwbuf;
+
 	int ret = remove(fpath);
 	if (ret)
 	{
@@ -315,6 +339,68 @@ string GetCanonicalizePath(const char *szPath)
 	return strPath;
 }
 
+Optional<string> GetCanonicalizePath(const string &path)
+{
+	if (path.empty())
+	{
+		return Optional<string>();  // Return empty optional for empty path
+	}
+
+	string result = GetCanonicalizePath(path.c_str());
+	if (result.empty())
+	{
+		return Optional<string>();  // Return empty optional if canonicalization failed
+	}
+
+	return Optional<string>(std::move(result));
+}
+
+// Modern lambda-based utility functions
+void ProcessFilesWithCallback(const vector<string>& files,
+                             const function<bool(const string&)>& processor,
+                             const function<void(const string&, bool)>& resultCallback)
+{
+	for (const auto& file : files) {
+		bool success = processor(file);
+		if (resultCallback) {
+			resultCallback(file, success);
+		}
+	}
+}
+
+void ProcessFilesInParallel(const vector<string>& files,
+                           const function<bool(const string&)>& processor,
+                           const function<void(const string&, bool)>& resultCallback,
+                           int threadCount)
+{
+	if (threadCount <= 1) {
+		ProcessFilesWithCallback(files, processor, resultCallback);
+		return;
+	}
+
+	atomic<size_t> index(0);
+	vector<thread> workers;
+
+	auto workerLambda = [&]() {
+		size_t currentIndex;
+		while ((currentIndex = index.fetch_add(1)) < files.size()) {
+			const string& file = files[currentIndex];
+			bool success = processor(file);
+			if (resultCallback) {
+				resultCallback(file, success);
+			}
+		}
+	};
+
+	for (int i = 0; i < threadCount; ++i) {
+		workers.emplace_back(workerLambda);
+	}
+
+	for (auto& worker : workers) {
+		worker.join();
+	}
+}
+
 int64_t GetFileSize(int fd)
 {
 	int64_t nSize = 0;
@@ -327,6 +413,22 @@ int64_t GetFileSize(int fd)
 		}
 	}
 	return (nSize < 0 ? 0 : nSize);
+}
+
+Optional<int64_t> GetFileSizeOptional(const char *szFile)
+{
+	if (!szFile || !IsFileExists(szFile))
+	{
+		return Optional<int64_t>();  // Return empty optional
+	}
+
+	int64_t size = GetFileSize(szFile);
+	if (size < 0)
+	{
+		return Optional<int64_t>();  // Return empty optional on error
+	}
+
+	return Optional<int64_t>(size);
 }
 
 int64_t GetFileSize(const char *szFile)
@@ -359,26 +461,26 @@ string FormatSize(int64_t size, int64_t base)
 	if (size > base * base * base * base)
 	{
 		fsize = (size * 1.0) / (base * base * base * base);
-		sprintf(ret, "%.2f TB", fsize);
+		snprintf(ret, sizeof(ret), "%.2f TB", fsize);
 	}
 	else if (size > base * base * base)
 	{
 		fsize = (size * 1.0) / (base * base * base);
-		sprintf(ret, "%.2f GB", fsize);
+		snprintf(ret, sizeof(ret), "%.2f GB", fsize);
 	}
 	else if (size > base * base)
 	{
 		fsize = (size * 1.0) / (base * base);
-		sprintf(ret, "%.2f MB", fsize);
+		snprintf(ret, sizeof(ret), "%.2f MB", fsize);
 	}
 	else if (size > base)
 	{
 		fsize = (size * 1.0) / (base);
-		sprintf(ret, "%.2f KB", fsize);
+		snprintf(ret, sizeof(ret), "%.2f KB", fsize);
 	}
 	else
 	{
-		sprintf(ret, "%" PRId64 " B", size);
+		snprintf(ret, sizeof(ret), "%" PRId64 " B", size);
 	}
 	return ret;
 }
@@ -405,7 +507,7 @@ time_t GetUnixStamp()
 
 uint64_t GetMicroSecond()
 {
-	struct timeval tv = {0};
+	struct timeval tv = {0, 0};
 	gettimeofday(&tv, NULL);
 	return tv.tv_sec * 1000000 + tv.tv_usec;
 }
@@ -522,7 +624,7 @@ bool SHA1Text(const string &strData, string &strOutput)
 	char buf[16] = {0};
 	for (size_t i = 0; i < strSHASum.size(); i++)
 	{
-		sprintf(buf, "%02x", (uint8_t)strSHASum[i]);
+		snprintf(buf, sizeof(buf), "%02x", (uint8_t)strSHASum[i]);
 		strOutput += buf;
 	}
 	return (!strOutput.empty());
@@ -628,13 +730,37 @@ bool SHASumBase64File(const char *szFile, string &strSHA1Base64, string &strSHA2
 
 ZBuffer::ZBuffer()
 {
-	m_pData = NULL;
+	m_pData = nullptr;
 	m_uSize = 0;
 }
 
 ZBuffer::~ZBuffer()
 {
 	Free();
+}
+
+ZBuffer::ZBuffer(ZBuffer &&other) noexcept : m_pData(other.m_pData), m_uSize(other.m_uSize)
+{
+	// Take ownership of other's resources
+	other.m_pData = nullptr;
+	other.m_uSize = 0;
+}
+
+ZBuffer &ZBuffer::operator=(ZBuffer &&other) noexcept
+{
+	if (this != &other)
+	{
+		Free();  // Clean up current resources
+
+		// Take ownership of other's resources
+		m_pData = other.m_pData;
+		m_uSize = other.m_uSize;
+
+		// Leave other in a valid but empty state
+		other.m_pData = nullptr;
+		other.m_uSize = 0;
+	}
+	return *this;
 }
 
 char *ZBuffer::GetBuffer(uint32_t uSize)
@@ -644,11 +770,11 @@ char *ZBuffer::GetBuffer(uint32_t uSize)
 		return m_pData;
 	}
 
-	char *pData = (char *)realloc(m_pData, uSize);
-	if (NULL == pData)
+	char *pData = static_cast<char*>(realloc(m_pData, uSize));
+	if (nullptr == pData)
 	{
 		Free();
-		return NULL;
+		return nullptr;
 	}
 
 	m_pData = pData;
@@ -658,11 +784,11 @@ char *ZBuffer::GetBuffer(uint32_t uSize)
 
 void ZBuffer::Free()
 {
-	if (NULL != m_pData)
+	if (nullptr != m_pData)
 	{
 		free(m_pData);
 	}
-	m_pData = NULL;
+	m_pData = nullptr;
 	m_uSize = 0;
 }
 

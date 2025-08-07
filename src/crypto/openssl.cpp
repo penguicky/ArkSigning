@@ -1,6 +1,7 @@
-#include "common/common.h"
-#include "common/base64.h"
-#include "openssl.h"
+#include "utils/common.h"
+#include "utils/base64.h"
+#include "crypto/openssl_raii.h"
+#include "crypto/openssl.h"
 
 #include <openssl/pem.h>
 #include <openssl/cms.h>
@@ -8,6 +9,8 @@
 #include <openssl/provider.h>
 #include <openssl/pkcs12.h>
 #include <openssl/conf.h>
+
+using namespace ArkSigning::OpenSSL;
 
 class COpenSSLInit
 {
@@ -117,49 +120,58 @@ bool CMSError()
 ASN1_TYPE *_GenerateASN1Type(const string &value)
 {
 	long errline = -1;
-	char *genstr = NULL;
-	BIO *ldapbio = BIO_new(BIO_s_mem());
-	CONF *cnf = NCONF_new(NULL);
+	char *genstr = nullptr;
 
-	if (cnf == NULL) {
+	auto ldapbio = BIOWrapper::createMem();
+	auto cnf = CONFWrapper::create();
+
+	if (!cnf) {
 		ZLog::Error(">>> NCONF_new failed\n");
-		BIO_free(ldapbio);
+		return nullptr;
 	}
-	string a = "asn1=SEQUENCE:A\n[A]\nC=OBJECT:sha256\nB=FORMAT:HEX,OCT:" + value + "\n";
-	int code = BIO_puts(ldapbio, a.c_str());
-	if (NCONF_load_bio(cnf, ldapbio, &errline) <= 0) {
-		BIO_free(ldapbio);
-		NCONF_free(cnf);
-		ZLog::PrintV(">>> NCONF_load_bio failed %d\n", errline);
-	}
-	BIO_free(ldapbio);
-	genstr = NCONF_get_string(cnf, "default", "asn1");
 
-	if (genstr == NULL) {
-		ZLog::Error(">>> NCONF_get_string failed\n");
-		NCONF_free(cnf);
+	string a = "asn1=SEQUENCE:A\n[A]\nC=OBJECT:sha256\nB=FORMAT:HEX,OCT:" + value + "\n";
+	int code = BIO_puts(ldapbio.get(), a.c_str());
+	if (code <= 0) {
+		ZLog::PrintV(">>> BIO_puts failed with code %d\n", code);
+		return nullptr;
 	}
-	ASN1_TYPE *ret = ASN1_generate_nconf(genstr, cnf);
-	NCONF_free(cnf);
+
+	if (NCONF_load_bio(cnf.get(), ldapbio.get(), &errline) <= 0) {
+		ZLog::PrintV(">>> NCONF_load_bio failed %d\n", errline);
+		return nullptr;
+	}
+
+	genstr = NCONF_get_string(cnf.get(), "default", "asn1");
+	if (genstr == nullptr) {
+		ZLog::Error(">>> NCONF_get_string failed\n");
+		return nullptr;
+	}
+
+	ASN1_TYPE *ret = ASN1_generate_nconf(genstr, cnf.get());
+	// RAII wrappers automatically clean up resources
 	return ret;
 }
 
 bool _GenerateCMS(X509 *scert, EVP_PKEY *spkey, const string &strCDHashData, const string &strCDHashesPlist, const string &strCodeDirectorySlotSHA1, const string &strAltnateCodeDirectorySlot256, string &strCMSOutput)
 {
+	// Suppress unused parameter warning - parameter kept for API compatibility
+	(void)strCodeDirectorySlotSHA1;
+
 	if (!scert || !spkey)
 	{
 		return CMSError();
 	}
 
-	BIO *bother1;
+	BIOWrapper bother1(nullptr);
 	unsigned long issuerHash = X509_issuer_name_hash(scert);
 	if (0x817d2f7a == issuerHash)
 	{
-		bother1 = BIO_new_mem_buf(appleDevCACert, (int)strlen(appleDevCACert));
+		bother1 = BIOWrapper::createMemBuf(appleDevCACert, static_cast<int>(strlen(appleDevCACert)));
 	}
 	else if (0x9b16b75c == issuerHash)
 	{
-		bother1 = BIO_new_mem_buf(appleDevCACertG3, (int)strlen(appleDevCACertG3));
+		bother1 = BIOWrapper::createMemBuf(appleDevCACertG3, static_cast<int>(strlen(appleDevCACertG3)));
 	}
 	else
 	{
@@ -167,50 +179,50 @@ bool _GenerateCMS(X509 *scert, EVP_PKEY *spkey, const string &strCDHashData, con
 		return false;
 	}
 
-	BIO *bother2 = BIO_new_mem_buf(appleRootCACert, (int)strlen(appleRootCACert));
+	auto bother2 = BIOWrapper::createMemBuf(appleRootCACert, static_cast<int>(strlen(appleRootCACert)));
 	if (!bother1 || !bother2)
 	{
 		return CMSError();
 	}
 
-	X509 *ocert1 = PEM_read_bio_X509(bother1, NULL, 0, NULL);
-	X509 *ocert2 = PEM_read_bio_X509(bother2, NULL, 0, NULL);
+	auto ocert1 = X509Wrapper(PEM_read_bio_X509(bother1.get(), nullptr, 0, nullptr));
+	auto ocert2 = X509Wrapper(PEM_read_bio_X509(bother2.get(), nullptr, 0, nullptr));
 	if (!ocert1 || !ocert2)
 	{
 		return CMSError();
 	}
 
-	STACK_OF(X509) *otherCerts = sk_X509_new_null();
+	auto otherCerts = X509StackWrapper::create();
 	if (!otherCerts)
 	{
 		return CMSError();
 	}
 
-	if (!sk_X509_push(otherCerts, ocert1))
+	if (!otherCerts.push(ocert1.release()))
 	{
 		return CMSError();
 	}
 
-	if (!sk_X509_push(otherCerts, ocert2))
+	if (!otherCerts.push(ocert2.release()))
 	{
 		return CMSError();
 	}
 
-	BIO *in = BIO_new_mem_buf(strCDHashData.c_str(), (int)strCDHashData.size());
+	auto in = BIOWrapper::createMemBuf(strCDHashData.c_str(), static_cast<int>(strCDHashData.size()));
 	if (!in)
 	{
 		return CMSError();
 	}
 
 	int nFlags = CMS_PARTIAL | CMS_DETACHED | CMS_NOSMIMECAP | CMS_BINARY;
-	CMS_ContentInfo *cms = CMS_sign(NULL, NULL, otherCerts, NULL, nFlags);
+	auto cms = CMSWrapper(CMS_sign(nullptr, nullptr, otherCerts.get(), nullptr, nFlags));
 	if (!cms)
 	{
 		return CMSError();
 	}
 
-    CMS_SignerInfo * si = CMS_add1_signer(cms, scert, spkey, EVP_sha256(), nFlags);
-//    CMS_add1_signer(cms, NULL, NULL, EVP_sha1(), nFlags);
+    CMS_SignerInfo * si = CMS_add1_signer(cms.get(), scert, spkey, EVP_sha256(), nFlags);
+//    CMS_add1_signer(cms.get(), nullptr, nullptr, EVP_sha1(), nFlags);
     if (!si) {
         return CMSError();
     }
@@ -232,7 +244,7 @@ bool _GenerateCMS(X509 *scert, EVP_PKEY *spkey, const string &strCDHashData, con
 	char buf[16] = {0};
 	for (size_t i = 0; i < strAltnateCodeDirectorySlot256.size(); i++)
 	{
-		sprintf(buf, "%02x", (uint8_t)strAltnateCodeDirectorySlot256[i]);
+		snprintf(buf, sizeof(buf), "%02x", (uint8_t)strAltnateCodeDirectorySlot256[i]);
 		sha256 += buf;
 	}
 	transform(sha256.begin(), sha256.end(), sha256.begin(), ::toupper);
@@ -242,36 +254,36 @@ bool _GenerateCMS(X509 *scert, EVP_PKEY *spkey, const string &strCDHashData, con
         return CMSError();
     }
 
-	X509_ATTRIBUTE *attr = X509_ATTRIBUTE_new();
-	X509_ATTRIBUTE_set1_object(attr, obj2);
+	auto attr = X509AttributeWrapper::create();
+	X509_ATTRIBUTE_set1_object(attr.get(), obj2);
 
-	ASN1_TYPE *type_256 = _GenerateASN1Type(sha256);
-	X509_ATTRIBUTE_set1_data(attr, V_ASN1_SEQUENCE,
+	auto type_256 = ASN1TypeWrapper(_GenerateASN1Type(sha256));
+	X509_ATTRIBUTE_set1_data(attr.get(), V_ASN1_SEQUENCE,
                              type_256->value.asn1_string->data, type_256->value.asn1_string->length);
-	int addHashSHA = CMS_signed_add1_attr(si, attr);
+	int addHashSHA = CMS_signed_add1_attr(si, attr.get());
 	if (!addHashSHA) {
         return CMSError();
     }
 
-	if (!CMS_final(cms, in, NULL, nFlags))
+	if (!CMS_final(cms.get(), in.get(), nullptr, nFlags))
 	{
 		return CMSError();
 	}
 
-	BIO *out = BIO_new(BIO_s_mem());
+	auto out = BIOWrapper::createMem();
 	if (!out)
 	{
 		return CMSError();
 	}
 
-	//PEM_write_bio_CMS(out, cms);
-	if (!i2d_CMS_bio(out, cms))
+	//PEM_write_bio_CMS(out.get(), cms.get());
+	if (!i2d_CMS_bio(out.get(), cms.get()))
 	{
 		return CMSError();
 	}
 
-	BUF_MEM *bptr = NULL;
-	BIO_get_mem_ptr(out, &bptr);
+	BUF_MEM *bptr = nullptr;
+	BIO_get_mem_ptr(out.get(), &bptr);
 	if (!bptr)
 	{
 		return CMSError();
@@ -279,28 +291,38 @@ bool _GenerateCMS(X509 *scert, EVP_PKEY *spkey, const string &strCDHashData, con
 
 	strCMSOutput.clear();
 	strCMSOutput.append(bptr->data, bptr->length);
-	ASN1_TYPE_free(type_256);
+	// RAII wrappers automatically clean up resources
 	return (!strCMSOutput.empty());
 }
 
 bool GenerateCMS(const string &strSignerCertData, const string &strSignerPKeyData, const string &strCDHashData, const string &strCDHashesPlist, string &strCMSOutput)
 {
-	BIO *bcert = BIO_new_mem_buf(strSignerCertData.c_str(), (int)strSignerCertData.size());
-	BIO *bpkey = BIO_new_mem_buf(strSignerPKeyData.c_str(), (int)strSignerPKeyData.size());
+	auto bcert = BIOWrapper::createMemBuf(strSignerCertData.c_str(), static_cast<int>(strSignerCertData.size()));
+	auto bpkey = BIOWrapper::createMemBuf(strSignerPKeyData.c_str(), static_cast<int>(strSignerPKeyData.size()));
 
 	if (!bcert || !bpkey)
 	{
 		return CMSError();
 	}
 
-	X509 *scert = PEM_read_bio_X509(bcert, NULL, 0, NULL);
-	EVP_PKEY *spkey = PEM_read_bio_PrivateKey(bpkey, NULL, 0, NULL);
+	auto scert = X509Wrapper(PEM_read_bio_X509(bcert.get(), nullptr, 0, nullptr));
+	auto spkey = EVPKeyWrapper(PEM_read_bio_PrivateKey(bpkey.get(), nullptr, 0, nullptr));
 	if (!scert || !spkey)
 	{
 		return CMSError();
 	}
 
-	return ::_GenerateCMS(scert, spkey, strCDHashData, strCDHashesPlist, "", "", strCMSOutput);
+	return ::_GenerateCMS(scert.get(), spkey.get(), strCDHashData, strCDHashesPlist, "", "", strCMSOutput);
+}
+
+Optional<string> GenerateCMSOptional(const string &strSignerCertData, const string &strSignerPKeyData, const string &strCDHashData, const string &strCDHashPlist)
+{
+	string cmsOutput;
+	if (GenerateCMS(strSignerCertData, strSignerPKeyData, strCDHashData, strCDHashPlist, cmsOutput))
+	{
+		return Optional<string>(std::move(cmsOutput));
+	}
+	return Optional<string>();  // Return empty optional on failure
 }
 
 bool GetCMSContent(const string &strCMSDataInput, string &strContentOutput)
@@ -332,6 +354,16 @@ bool GetCMSContent(const string &strCMSDataInput, string &strContentOutput)
 	strContentOutput.clear();
 	strContentOutput.append((const char *)(*pos)->data, (*pos)->length);
 	return (!strContentOutput.empty());
+}
+
+Optional<string> GetCMSContentOptional(const string &strCMSDataInput)
+{
+	string content;
+	if (GetCMSContent(strCMSDataInput, content))
+	{
+		return Optional<string>(std::move(content));
+	}
+	return Optional<string>();  // Return empty optional on failure
 }
 
 bool GetCertSubjectCN(X509 *cert, string &strSubjectCN)
@@ -386,6 +418,16 @@ bool GetCertSubjectCN(const string &strCertData, string &strSubjectCN)
 	}
 
 	return GetCertSubjectCN(cert, strSubjectCN);
+}
+
+Optional<string> GetCertSubjectCNOptional(const string &strCertData)
+{
+	string subjectCN;
+	if (GetCertSubjectCN(strCertData, subjectCN))
+	{
+		return Optional<string>(std::move(subjectCN));
+	}
+	return Optional<string>();  // Return empty optional on failure
 }
 
 void ParseCertSubject(const string &strSubject, JValue &jvSubject)
@@ -556,7 +598,7 @@ bool GetCMSInfo(uint8_t *pCMSData, uint32_t uCMSLength, JValue &jvOutput)
 					char buf[16] = {0};
 					for (int m = 0; m < av->value.octet_string->length; m++)
 					{
-						sprintf(buf, "%02x", (uint8_t)av->value.octet_string->data[m]);
+						snprintf(buf, sizeof(buf), "%02x", (uint8_t)av->value.octet_string->data[m]);
 						strSHASum += buf;
 					}
 					jvOutput["attrs"]["MessageDigest"]["obj"] = txtobj;
