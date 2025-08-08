@@ -124,11 +124,12 @@ endif()
 add_executable(arksigning ${ALL_SRC})
 
 # Set include directories (matching Makefile configuration)
+# Order matters: arksigning directory first so "utils/common.h" resolves correctly
 target_include_directories(arksigning PRIVATE
     ${OPENSSL_INCLUDE_DIR}
     ${ZLIB_INCLUDE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/include/arksigning
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
 # Link libraries
