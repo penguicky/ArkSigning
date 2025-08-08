@@ -115,7 +115,8 @@ vcpkg_installed/
 # Debugging
 *.dSYM/
 *.dSYM.zip
-core
+# Core dump files (but not src/core/ directory)
+/core
 core.*
 vgcore.*
 *.stackdump
