@@ -123,7 +123,7 @@ endif()
 # Create executable
 add_executable(arksigning ${ALL_SRC})
 
-# Set include directories
+# Set include directories (matching Makefile configuration)
 target_include_directories(arksigning PRIVATE
     ${OPENSSL_INCLUDE_DIR}
     ${ZLIB_INCLUDE_DIR}
