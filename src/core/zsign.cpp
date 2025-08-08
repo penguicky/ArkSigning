@@ -343,7 +343,15 @@ bool bulkSign(const string& inputFolder, const string& outputFolder, arksigningA
     for (int i = 0; i < threadCount; i++) {
         workers.emplace_back(createWorkerLambda());
     }
-    
+
+    // Wait for all tasks to be processed, then signal completion
+    while (completedTasks.load() < static_cast<int>(allTasks.size())) {
+        this_thread::sleep_for(chrono::milliseconds(100));
+    }
+
+    // Signal that no more tasks will be added
+    taskQueue.setDone();
+
     // Wait for all threads to complete
     for (auto& worker : workers) {
         worker.join();
