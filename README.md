@@ -461,6 +461,20 @@ for app in ./apps/*.ipa; do
 done
 ```
 
+**Issue: "Bulk signing process never exits/hangs indefinitely"**
+```bash
+# ✅ FIXED in v0.6.1 - This issue has been resolved
+# Previous versions had an infinite loop bug in bulk signing mode
+# Update to latest version if experiencing this issue
+
+# Verify the fix is working:
+timeout 30s ./arksigning --bulk --inputfolder ./test --outputfolder ./output \
+    -k cert.p12 -p "pass" -m profile.mobileprovision
+
+# Process should exit within seconds (with error if files are invalid)
+# If it times out, you may be using an older version
+```
+
 #### **Performance Troubleshooting**
 
 **Slow signing performance:**
@@ -620,6 +634,24 @@ mv apps51-100.ipa batch2/
 ./arksigning --bulk --inputfolder ./apps --outputfolder ./signed \
     -k cert.p12 -p "pass" -m profile.mobileprovision --parallel 1000   # Too high
 ```
+
+## 📝 Changelog
+
+### **v0.6.1** (August 2025)
+- 🐛 **CRITICAL FIX**: Resolved bulk signing infinite loop bug
+  - Fixed issue where `--bulk` mode would hang indefinitely after completing signing
+  - Process now exits properly with correct return codes
+  - Compatible with automated scripts and CI/CD pipelines
+- 🔧 **Technical**: Added proper task completion detection in ThreadSafeQueue
+- ✅ **Impact**: Bulk signing now works reliably in production environments
+
+### **v0.6** (August 2025)
+- 🚀 **NEW**: Complete project restructuring and modernization
+- 🏗️ **Build System**: Fixed CMake configuration and added all missing source files
+- 📦 **Pre-built Binaries**: Added macOS ARM64 binaries for easy installation
+- 📖 **Documentation**: Comprehensive README with 70+ usage examples
+- 🛡️ **Code Quality**: Modern C++11 practices with RAII and smart pointers
+- 🔧 **Features**: Enhanced bulk signing, parallel processing, dylib injection
 
 ## 📚 Documentation
 
