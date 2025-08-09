@@ -13,13 +13,10 @@ A **modernized, enterprise-grade iOS app signing tool** based on zsign, featurin
 
 ### 🍎 macOS (Apple Silicon)
 ```bash
-# One-line installer
-curl -fsSL https://raw.githubusercontent.com/penguicky/ArkSigning/main/releases/install.sh | bash
-
-# Or manual download
-wget https://github.com/penguicky/ArkSigning/releases/download/v0.6/arksigning-v0.6-macos-arm64.tar.gz
-tar -xzf arksigning-v0.6-macos-arm64.tar.gz
-chmod +x arksigning-v0.6-macos-arm64
+# Manual download (recommended)
+wget https://github.com/penguicky/ArkSigning/releases/download/v0.6.1/arksigning-v0.6.1-macos-arm64.tar.gz
+tar -xzf arksigning-v0.6.1-macos-arm64.tar.gz
+chmod +x arksigning-v0.6.1-macos-arm64
 ```
 
 **Requirements:** macOS 11.0+ (Big Sur or later) on Apple Silicon (M1/M2/M3)
@@ -27,15 +24,15 @@ chmod +x arksigning-v0.6-macos-arm64
 ### 📋 Available Downloads
 | Platform | Architecture | File | Size |
 |----------|-------------|------|------|
-| macOS | ARM64 (Apple Silicon) | [arksigning-v0.6-macos-arm64.tar.gz](https://github.com/penguicky/ArkSigning/releases/download/v0.6/arksigning-v0.6-macos-arm64.tar.gz) | ~124KB |
+| macOS | ARM64 (Apple Silicon) | [arksigning-v0.6.1-macos-arm64.tar.gz](https://github.com/penguicky/ArkSigning/releases/download/v0.6.1/arksigning-v0.6.1-macos-arm64.tar.gz) | ~123KB |
 
-**SHA256 Checksum:** `b3da4fc6164d020a7d7e2dceca3b407b0d8b670004200290eea268d2c409d029`
+**SHA256 Checksum:** `eda599761e71dc6b5863112e04eb25e935fab3258b9a0d35e899b4b8159cf746`
 
 ## 🚀 Quick Start
 
 ```bash
 # Using pre-built binary
-./arksigning-v0.6-macos-arm64 -k dev.p12 -p password -m dev.prov -o signed.ipa app.ipa
+./arksigning-v0.6.1-macos-arm64 -k dev.p12 -p password -m dev.prov -o signed.ipa app.ipa
 
 # Or build from source
 make
